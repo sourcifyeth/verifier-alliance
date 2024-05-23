@@ -1,30 +1,13 @@
-# Needs to be run from the project root context
-FROM node:18.18.2-bullseye as builder
+FROM node:18.18.2-bullseye-slim
+
 RUN mkdir -p /home/app
-WORKDIR /home/app
-
-COPY  . .
-
-RUN npm ci --workspace=sourcify-verifier-alliance --include-workspace-root
-
-######################
-## Production image ##
-######################
-FROM node:18.18.2-bullseye-slim as production
-
-RUN mkdir -p /home/app/services/verifier-alliance
 
 WORKDIR /home/app/
-COPY package.json ./package.json
-COPY package-lock.json ./package-lock.json
-COPY lerna.json ./lerna.json
-COPY nx.json ./nx.json
 
-COPY --from=builder /home/app/packages/ ./packages/
-COPY --from=builder /home/app/services/verifier-alliance/ ./services/verifier-alliance/
+COPY ./ ./
 
-RUN npm ci --workspace=sourcify-verifier-alliance --include-workspace-root --omit=dev
-LABEL org.opencontainers.image.source https://github.com/ethereum/sourcify
+RUN npm ci
+LABEL org.opencontainers.image.source https://github.com/sourcifyeth/verifier-alliance
 LABEL org.opencontainers.image.licenses MIT
 
 ARG VERA_HOST
@@ -39,7 +22,5 @@ ARG NODE_ENV=production
 
 # Set environment variable
 ENV NODE_ENV=${NODE_ENV}
-
-WORKDIR /home/app/services/verifier-alliance
 
 CMD ["node", "pullFromVera.mjs" ]

@@ -48,4 +48,16 @@ This daemon listens for `new_verified_contract` PostgreSQL notification and send
 
 ## Run
 
-`npm run vera:pull`
+```bash
+npm run vera:pull
+```
+
+or with docker:
+
+```bash
+docker build  -t sourcify-verifier-alliance .
+```
+
+```bash
+docker run --name sourcify-verifier-alliance --env-file=.env  sourcify-verifier-alliance
+```
