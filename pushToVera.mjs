@@ -6,6 +6,8 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
+console.log("Starting Push to Verifier Alliance DB");
+
 const __filename = fileURLToPath(import.meta.url); // get the resolved path to the file
 const __dirname = path.dirname(__filename);
 
@@ -62,6 +64,21 @@ async function upsertAndGetId(
     let verifiedContractCount = 1;
 
     while (verifiedContractCount > 0) {
+      const startIterationTime = performance.now();
+
+      console.log(`Processing next ${N} contracts`);
+      console.log(`Current contract id: ${CURRENT_VERIFIED_CONTRACT}`);
+
+      const { rows: countLeft } = await sourceClient.query(
+        `
+              SELECT COUNT(*) FROM verified_contracts
+              WHERE id >= $1
+                AND compilation_id in (select id from compiled_contracts where creation_code_hash is not null)
+          `,
+        [CURRENT_VERIFIED_CONTRACT]
+      );
+      console.log("Number of contracts left: ", countLeft[0].count);
+
       const { rows: verifiedContracts, rowCount } = await sourceClient.query(
         `
               SELECT * FROM verified_contracts
@@ -237,6 +254,15 @@ async function upsertAndGetId(
           ]
         );
       }
+
+      const endIterationTime = performance.now();
+      const iterationTimeTaken = endIterationTime - startIterationTime;
+      console.log(
+        `Rate: processing ${
+          N / (iterationTimeTaken / 1000)
+        } contracts per second`
+      );
+      console.log();
     }
     console.log("Contracts transferred successfully.");
   } catch (error) {
