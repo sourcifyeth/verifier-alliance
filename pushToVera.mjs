@@ -71,9 +71,17 @@ async function upsertAndGetId(
 
       const { rows: countLeft } = await sourceClient.query(
         `
-              SELECT COUNT(*) FROM verified_contracts
-              WHERE id >= $1
-                AND compilation_id in (select id from compiled_contracts where creation_code_hash is not null)
+          SELECT count(vc.*) FROM sourcify_matches sm
+          JOIN verified_contracts vc ON vc.id = sm.verified_contract_id
+          JOIN contract_deployments cd on vc.deployment_id = cd.id 
+          JOIN contracts c on cd.contract_id = c.id 
+          JOIN code on code.code_hash = c.creation_code_hash 
+            WHERE 1=1
+            and sm.creation_match is not null
+            and sm.runtime_match is not null
+            and cd.transaction_hash is not null
+            and code.code is not null
+            and vc.id >= $1;
           `,
         [CURRENT_VERIFIED_CONTRACT]
       );
@@ -81,11 +89,19 @@ async function upsertAndGetId(
 
       const { rows: verifiedContracts, rowCount } = await sourceClient.query(
         `
-              SELECT * FROM verified_contracts
-              WHERE id >= $1
-                AND compilation_id in (select id from compiled_contracts where creation_code_hash is not null)
-              ORDER BY id ASC
-              LIMIT $2
+          SELECT vc.* FROM sourcify_matches sm
+          JOIN verified_contracts vc ON vc.id = sm.verified_contract_id
+          JOIN contract_deployments cd on vc.deployment_id = cd.id 
+          JOIN contracts c on cd.contract_id = c.id 
+          JOIN code on code.code_hash = c.creation_code_hash 
+          WHERE 1=1
+            and sm.creation_match is not null
+            and sm.runtime_match is not null
+            and cd.transaction_hash is not null
+            and code.code is not null
+            and vc.id >= $1
+          ORDER BY vc.id ASC
+          LIMIT $2;
           `,
         [CURRENT_VERIFIED_CONTRACT, N]
       );
