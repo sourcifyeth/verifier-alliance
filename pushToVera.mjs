@@ -223,7 +223,6 @@ async function upsertAndGetId(
           compilation.version,
           compilation.name,
           compilation.fully_qualified_name,
-          compilation.sources,
           compilation.compiler_settings,
           compilation.compilation_artifacts,
           compilation.creation_code_artifacts,
@@ -232,18 +231,90 @@ async function upsertAndGetId(
         const newCompilationId = await upsertAndGetId(
           `
                   INSERT INTO compiled_contracts (
-                      compiler, language, creation_code_hash, runtime_code_hash, version, name, fully_qualified_name, sources, compiler_settings,
-                      compilation_artifacts, creation_code_artifacts, runtime_code_artifacts)
-                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+                      compiler, language, creation_code_hash, runtime_code_hash, version, name, fully_qualified_name, 
+                      compiler_settings, compilation_artifacts, creation_code_artifacts, runtime_code_artifacts)
+                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
                   ON CONFLICT (compiler, language, creation_code_hash, runtime_code_hash) DO NOTHING
               `,
           `
-                  SELECT id FROM compiled_contracts WHERE compiler = $1 AND language = $2 AND creation_code_hash = $3 AND runtime_code_hash = $4
+                  SELECT id FROM compiled_contracts 
+                  WHERE compiler = $1 AND language = $2 AND creation_code_hash = $3 AND runtime_code_hash = $4
               `,
           newCompilationIdValues,
           newCompilationIdValues.slice(0, 4),
           targetClient
         );
+
+        // Get sources for the compilation
+        const { rows: compilationSources } = await sourceClient.query(
+          `SELECT * FROM compiled_contracts_sources WHERE compilation_id = $1`,
+          [compilation_id]
+        );
+
+        // Extract all source_hashes
+        const sourceHashes = compilationSources.map(
+          (source) => source.source_hash
+        );
+
+        // Fetch all relevant sources in a single query
+        const { rows: sourcesContent } = await sourceClient.query(
+          `SELECT * FROM sources WHERE source_hash = ANY($1)`,
+          [sourceHashes]
+        );
+
+        // Create a map for quick lookup
+        const sourceContentMap = new Map(
+          sourcesContent.map((source) => [
+            source.source_hash.toString("hex"),
+            source,
+          ])
+        );
+
+        // Insert sources and compiled_contracts_sources
+        for (const source of compilationSources) {
+          const sourceContent = sourceContentMap.get(
+            source.source_hash.toString("hex")
+          );
+
+          if (!sourceContent) {
+            console.warn(
+              `Source content not found for hash: ${source.source_hash.toString(
+                "hex"
+              )}`
+            );
+            continue;
+          }
+
+          // Insert into sources table
+          const sourceValues = [
+            Buffer.from(sourceContent.source_hash),
+            Buffer.from(sourceContent.source_hash_keccak),
+            sourceContent.content,
+          ];
+          await targetClient.query(
+            `
+            INSERT INTO sources (source_hash, source_hash_keccak, content)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (source_hash) DO NOTHING
+            `,
+            sourceValues
+          );
+
+          // Insert into compiled_contracts_sources table
+          const compiledSourcesValues = [
+            newCompilationId,
+            Buffer.from(source.source_hash),
+            source.path,
+          ];
+          await targetClient.query(
+            `
+            INSERT INTO compiled_contracts_sources (compilation_id, source_hash, path)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (compilation_id, path) DO NOTHING
+            `,
+            compiledSourcesValues
+          );
+        }
 
         await targetClient.query(
           `
