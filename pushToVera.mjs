@@ -379,22 +379,6 @@ async function upsertAndGetId(
           );
         }
 
-        console.log({
-          "verifiedContract.created_at": verifiedContract.created_at,
-          "verifiedContract.updated_at": verifiedContract.updated_at,
-          "verifiedContract.created_by": verifiedContract.created_by,
-          "verifiedContract.updated_by": verifiedContract.updated_by,
-          newDeploymentId: newDeploymentId,
-          newCompilationId: newCompilationId,
-          "verifiedContract.creation_match": verifiedContract.creation_match,
-          "verifiedContract.creation_values": verifiedContract.creation_values,
-          "JSON.stringify(verifiedContract.creation_transformations)":
-            JSON.stringify(verifiedContract.creation_transformations),
-          "verifiedContract.runtime_match": verifiedContract.runtime_match,
-          "verifiedContract.runtime_values": verifiedContract.runtime_values,
-          "JSON.stringify(verifiedContract.runtime_transformations":
-            JSON.stringify(verifiedContract.runtime_transformations),
-        });
         await targetClient.query(
           `
             INSERT INTO ${VERA_SCHEMA}.verified_contracts (
@@ -430,7 +414,6 @@ async function upsertAndGetId(
           N / (iterationTimeTaken / 1000)
         } contracts per second`
       );
-      console.log();
     }
     console.log("Contracts transferred successfully.");
   } catch (error) {
