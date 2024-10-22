@@ -85,7 +85,7 @@ async function upsertAndGetId(
           and sm.runtime_match is not null
           and cd.transaction_hash is not null
           and code.code is not null
-          and vc.id > $1;
+          and vc.id >= $1;
         `,
         [CURRENT_VERIFIED_CONTRACT]
       );
@@ -103,7 +103,7 @@ async function upsertAndGetId(
             and sm.runtime_match is not null
             and cd.transaction_hash is not null
             and code.code is not null
-            and vc.id > $1
+            and vc.id >= $1
           ORDER BY vc.id ASC
           LIMIT $2;
         `,
