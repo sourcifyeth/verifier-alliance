@@ -114,6 +114,8 @@ async function upsertAndGetId(
 
       for (const contract of verifiedContracts) {
         try {
+          await targetClient.query("BEGIN");
+
           const {
             id: verifiedContractId,
             deployment_id,
@@ -406,7 +408,10 @@ async function upsertAndGetId(
               verifiedContract.runtime_metadata_match,
             ]
           );
+
+          await targetClient.query("COMMIT");
         } catch (error) {
+          await targetClient.query("ROLLBACK");
           console.error("Error processing contract:", error);
         }
       }
