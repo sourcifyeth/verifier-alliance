@@ -3,18 +3,26 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import dotenv from "dotenv";
+import { AuthTypes, Connector } from "@google-cloud/cloud-sql-connector";
 
 dotenv.config();
 
 console.log("Starting Push to Verifier Alliance DB");
 
-const __filename = fileURLToPath(import.meta.url); // get the resolved path to the file
-const __dirname = path.dirname(__filename);
+const CURRENT_VERIFIED_CONTRACT_PATH =
+  process.env.CURRENT_VERIFIED_CONTRACT_PATH;
+
+if (!CURRENT_VERIFIED_CONTRACT_PATH) {
+  throw new Error("CURRENT_VERIFIED_CONTRACT_PATH is not set");
+}
 
 const { Client } = pg;
 
 // Load current verified contract counter from file
-const COUNTER_FILE = path.join(__dirname, "CURRENT_VERIFIED_CONTRACT");
+const COUNTER_FILE = path.join(
+  CURRENT_VERIFIED_CONTRACT_PATH,
+  "CURRENT_VERIFIED_CONTRACT"
+);
 let CURRENT_VERIFIED_CONTRACT = 1;
 if (fs.existsSync(COUNTER_FILE)) {
   CURRENT_VERIFIED_CONTRACT = parseInt(
@@ -37,15 +45,9 @@ const SOURCE_DB_CONFIG = {
 };
 
 const TARGET_DB_CONFIG = {
-  host: process.env.VERA_HOST,
   database: process.env.VERA_DB,
   user: process.env.VERA_USER,
-  password: process.env.VERA_PASSWORD,
-  port: process.env.VERA_PORT,
 };
-
-const sourceClient = new Client(SOURCE_DB_CONFIG);
-const targetClient = new Client(TARGET_DB_CONFIG);
 
 async function upsertAndGetId(
   query,
@@ -60,12 +62,26 @@ async function upsertAndGetId(
 }
 
 (async () => {
+  // Connect to source DB
+  const sourceClient = new Client(SOURCE_DB_CONFIG);
+  await sourceClient.connect();
+
+  // Connect to target DB
+  const connector = new Connector();
+  const targetPoolOpts = await connector.getOptions({
+    instanceConnectionName: process.env.VERA_INSTANCE_CONNECTION_NAME,
+    authType: AuthTypes.PASSWORD, // Use password auth instead of IAM
+  });
+  const targetPool = new pg.Pool({
+    ...targetPoolOpts,
+    ...TARGET_DB_CONFIG,
+    password: process.env.VERA_PASSWORD,
+  });
+  const targetClient = await targetPool.connect();
+
   try {
-    await sourceClient.connect();
-    await targetClient.connect();
-
+    // Process contracts
     let verifiedContractCount = 1;
-
     while (verifiedContractCount > 0) {
       const startIterationTime = performance.now();
 
@@ -429,6 +445,7 @@ async function upsertAndGetId(
     console.error("Error transferring contracts:", error);
   } finally {
     await sourceClient.end();
-    await targetClient.end();
+    await targetClient.release();
+    await targetPool.end();
   }
 })();
