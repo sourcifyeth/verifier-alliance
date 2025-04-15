@@ -1,7 +1,6 @@
 import pg from "pg";
 import fs from "fs";
 import path from "path";
-import { fileURLToPath } from "url";
 import dotenv from "dotenv";
 import { AuthTypes, Connector } from "@google-cloud/cloud-sql-connector";
 
@@ -31,7 +30,7 @@ if (fs.existsSync(COUNTER_FILE)) {
   );
 }
 
-const N = 200; // Number of contracts to process at a time
+const N = 10; // Number of contracts to process at a time
 
 const SOURCIFY_SCHEMA = process.env.SOURCIFY_SCHEMA || "public";
 const VERA_SCHEMA = process.env.VERA_SCHEMA || "public";
@@ -87,25 +86,6 @@ async function upsertAndGetId(
 
       console.log(`Processing next ${N} contracts`);
       console.log(`Current contract id: ${CURRENT_VERIFIED_CONTRACT}`);
-
-      const { rows: countLeft } = await sourceClient.query(
-        `
-          SELECT count(vc.*) 
-          FROM ${SOURCIFY_SCHEMA}.sourcify_matches sm
-          JOIN ${SOURCIFY_SCHEMA}.verified_contracts vc ON vc.id = sm.verified_contract_id
-          JOIN ${SOURCIFY_SCHEMA}.contract_deployments cd on vc.deployment_id = cd.id 
-          JOIN ${SOURCIFY_SCHEMA}.contracts c on cd.contract_id = c.id 
-          JOIN ${SOURCIFY_SCHEMA}.code on code.code_hash = c.creation_code_hash 
-          WHERE 1=1
-          and sm.creation_match is not null
-          and sm.runtime_match is not null
-          and cd.transaction_hash is not null
-          and code.code is not null
-          and vc.id >= $1;
-        `,
-        [CURRENT_VERIFIED_CONTRACT]
-      );
-      console.log("Number of contracts left: ", countLeft[0].count);
 
       const { rows: verifiedContracts, rowCount } = await sourceClient.query(
         `
@@ -398,14 +378,14 @@ async function upsertAndGetId(
             );
           }
 
-          await targetClient.query(
+          const result = await targetClient.query(
             `
             INSERT INTO ${VERA_SCHEMA}.verified_contracts (
                 created_at, updated_at, created_by, updated_by, deployment_id, compilation_id, 
                 creation_match, creation_values, creation_transformations, creation_metadata_match,
                 runtime_match, runtime_values, runtime_transformations, runtime_metadata_match)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-            ON CONFLICT (compilation_id, deployment_id) DO NOTHING
+            ON CONFLICT (compilation_id, deployment_id) DO NOTHING RETURNING id
           `,
             [
               verifiedContract.created_at,
@@ -424,8 +404,21 @@ async function upsertAndGetId(
               verifiedContract.runtime_metadata_match,
             ]
           );
-
-          await targetClient.query("COMMIT");
+          if (result.rows.length !== 0) {
+            await targetClient.query("COMMIT");
+            console.log(
+              `Pushed: [${deployment.chain_id.toString()}] 0x${deployment.address.toString(
+                "hex"
+              )}`
+            );
+          } else {
+            await targetClient.query("ROLLBACK");
+            console.log(
+              `Already pushed: [${deployment.chain_id.toString()}] 0x${deployment.address.toString(
+                "hex"
+              )}`
+            );
+          }
         } catch (error) {
           await targetClient.query("ROLLBACK");
           console.error("Error processing contract:", error);
