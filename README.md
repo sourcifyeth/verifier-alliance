@@ -36,7 +36,7 @@ This daemon listens for `new_verified_contract` PostgreSQL notification and send
          'new_verified_contract',
          json_build_object(
             'id', NEW.id,
-            'created_by', NEW.created_by,
+            'created_by', NEW.created_by
          )::text
       );
       RETURN NEW;

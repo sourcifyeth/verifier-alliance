@@ -34,10 +34,10 @@ async function main() {
     });
 
     // Skip verified_contracts pushed by sourcify
-    if (payload.created_by === "sourcify") {
-      logger.info("Contract inserted by Sourcify, skipping.");
-      return;
-    }
+    // if (payload.created_by === "sourcify") {
+    //   logger.info("Contract inserted by Sourcify, skipping.");
+    //   return;
+    // }
 
     let body;
     let chainId;
@@ -67,15 +67,14 @@ async function main() {
             GROUP BY 
               verified_contracts.id, 
               compiled_contracts.id, 
-              contract_deployments.id,
-              contracts.id;
+              contract_deployments.id
         `,
         [payload.id]
       );
 
       if (rows.length === 0) {
         logger.error("No contract found for the given verified_contract ID", {
-          verifiedContractId: payload.id,
+          veraVerifiedContractId: payload.id,
         });
         return;
       }
@@ -100,13 +99,13 @@ async function main() {
       logger.error("Error processing new_verified_contract notification", {
         message: error.message,
         errorObject: error,
-        verifiedContractId: payload.id,
+        veraVerifiedContractId: payload.id,
       });
       return;
     }
 
     logger.debug(
-      `Contract's information fetched, calling sourcify-servefr /v2/verify/${chainId}/${address} with parameters`,
+      `Contract's information fetched, submitting to Sourcify server /v2/verify/${chainId}/${address} with parameters`,
       body
     );
     try {
@@ -123,20 +122,25 @@ async function main() {
 
       if (res.status === 202) {
         const response = await res.json();
-        logger.info("Contract successfully verified", {
-          veraVerifiedContractId: payload.id,
-          address: response.result[0].address,
-          chainId: response.result[0].chainId,
-          status: response.result[0].status,
+        logger.info("Contract submitted for verification", {
+          verificationId: response.verificationId,
         });
       } else {
-        throw new Error(await res.json());
+        const errorResponse = await res.json();
+        logger.warn(
+          "Server returned an error when trying to submit for verification",
+          {
+            errorResponse,
+            veraVerifiedContractId: payload.id,
+          }
+        );
+        return;
       }
     } catch (error) {
       logger.warn("Failed to submit contract for verification", {
         message: error.message,
         errorObject: error,
-        verifiedContractId: payload.id,
+        veraVerifiedContractId: payload.id,
       });
       return;
     }
@@ -146,5 +150,34 @@ async function main() {
   logger.info("Started listening for VerA verified_contracts...");
   subscriber.listenTo("new_verified_contract");
 }
+
+// Graceful shutdown handling
+async function shutdown() {
+  logger.info("Shutting down gracefully...");
+  try {
+    await subscriber.close();
+    await veraClient.end();
+    logger.info("Database connections closed successfully");
+  } catch (error) {
+    logger.error("Error during shutdown", { error: error.message });
+    process.exit(1);
+  }
+  process.exit(0);
+}
+
+// Handle process termination signals
+process.on("SIGINT", shutdown);
+process.on("SIGTERM", shutdown);
+process.on("uncaughtException", (error) => {
+  logger.error("Uncaught Exception", {
+    message: error.message,
+    errorObject: error,
+  });
+  shutdown();
+});
+process.on("unhandledRejection", (reason, promise) => {
+  logger.error("Unhandled Rejection at:", { promise, reason });
+  shutdown();
+});
 
 main();
