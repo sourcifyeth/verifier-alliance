@@ -36,65 +36,90 @@ async function main() {
       logger.info("Contract inserted by Sourcify, skipping.");
       return;
     }
-    // Get all FK information
-    const {
-      rows: [deployment],
-    } = await veraClient.query(
-      "SELECT * FROM contract_deployments WHERE id = $1",
-      [payload.deployment_id]
-    );
-    const {
-      rows: [compilation],
-    } = await veraClient.query(
-      "SELECT * FROM compiled_contracts WHERE id = $1",
-      [payload.compilation_id]
-    );
 
-    // For some reason inside `compilation.compiler_settings` there is a compilationTarget parameter that is not supported by solc
-    const settings = compilation.compiler_settings;
-    delete settings.compilationTarget;
+    let body;
+    let chainId;
+    let address;
+    try {
+      // Get all FK information
+      const { rows } = await veraClient.query(
+        `
+            SELECT 
+                contract_deployments.chain_id,
+                concat('0x', encode(contract_deployments.address, 'hex')) as address,
+                json_build_object(
+                  'language', INITCAP(compiled_contracts.language), 
+                  'sources', json_object_agg(compiled_contracts_sources.path, json_build_object('content', sources.content)),
+                  'settings', compiled_contracts.compiler_settings
+                ) as std_json_input,
+                compiled_contracts.version as compiler_version,
+                compiled_contracts.fully_qualified_name,
+                concat('0x', encode(contract_deployments.transaction_hash, 'hex')) as creation_transaction_hash
+            FROM verified_contracts
+              JOIN compiled_contracts ON compiled_contracts.id = verified_contracts.compilation_id
+              JOIN contract_deployments ON contract_deployments.id = verified_contracts.deployment_id 
+              JOIN compiled_contracts_sources ON compiled_contracts_sources.compilation_id = compiled_contracts.id
+              LEFT JOIN sources ON sources.source_hash = compiled_contracts_sources.source_hash
+            WHERE
+                verified_contracts.id = $1
+            GROUP BY 
+              verified_contracts.id, 
+              compiled_contracts.id, 
+              contract_deployments.id,
+              contracts.id;
+        `,
+        [payload.id]
+      );
 
-    const settingsJson = JSON.stringify({
-      language: "Solidity",
-      sources: Object.keys(compilation.sources).reduce((obj, current) => {
-        obj[current] = {
-          content: compilation.sources[current],
-        };
-        return obj;
-      }, {}),
-      settings: compilation.compiler_settings,
-    });
-
-    logger.silly(
-      "Contract's information fetched, calling sourcify-server /verify/solc-json with parameters",
-      {
-        veraVerifiedContractId: payload.id,
-        address: "0x" + deployment.address.toString("hex"),
-        chainId: deployment.chain_id,
-        jsonInput: settingsJson,
+      if (rows.length === 0) {
+        logger.error("No contract found for the given verified_contract ID", {
+          verifiedContractId: payload.id,
+        });
+        return;
       }
+
+      chainId = rows[0].chain_id;
+      address = rows[0].address;
+      const stdJsonInput = rows[0].std_json_input;
+      const compilerVersion = rows[0].compiler_version;
+      const contractIdentifier = rows[0].fully_qualified_name;
+      const creationTransactionHash = rows[0].creation_transaction_hash;
+
+      // For some reason inside `compilation.compiler_settings` there is a compilationTarget parameter that is not supported by solc
+      delete stdJsonInput.settings.compilationTarget;
+
+      body = {
+        stdJsonInput,
+        compilerVersion,
+        contractIdentifier,
+        creationTransactionHash,
+      };
+    } catch (error) {
+      logger.error("Error processing new_verified_contract notification", {
+        message: error.message,
+        errorObject: error,
+        verifiedContractId: payload.id,
+      });
+      return;
+    }
+
+    logger.debug(
+      `Contract's information fetched, calling sourcify-servefr /v2/verify/${chainId}/${address} with parameters`,
+      body
     );
     try {
       const res = await fetch(
-        `${process.env.SOURCIFY_SERVER_HOST}/verify/solc-json`,
+        `${process.env.SOURCIFY_SERVER_HOST}/v2/verify/${chainId}/${address}`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({
-            compilerVersion: compilation.version,
-            contractName: compilation.name,
-            address: "0x" + deployment.address.toString("hex"),
-            chainId: deployment.chain_id,
-            files: {
-              "settings.json": settingsJson,
-            },
-          }),
+          body: JSON.stringify(body),
         }
       );
 
-      if (res.status === 200) {
+      if (res.status === 202) {
         const response = await res.json();
         logger.info("Contract successfully verified", {
           veraVerifiedContractId: payload.id,
@@ -103,12 +128,15 @@ async function main() {
           status: response.result[0].status,
         });
       } else {
-        throw new Error((await res.json()).error);
+        throw new Error(await res.json());
       }
     } catch (error) {
-      logger.warn("Failed to verify contract with error", {
-        error: error.message,
+      logger.warn("Failed to submit contract for verification", {
+        message: error.message,
+        errorObject: error,
+        verifiedContractId: payload.id,
       });
+      return;
     }
   });
 

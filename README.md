@@ -32,7 +32,13 @@ This daemon listens for `new_verified_contract` PostgreSQL notification and send
    CREATE OR REPLACE FUNCTION notify_new_verified_contract()
    RETURNS TRIGGER AS $$
    BEGIN
-      PERFORM pg_notify('new_verified_contract', row_to_json(NEW)::text);
+      PERFORM pg_notify(
+         'new_verified_contract',
+         json_build_object(
+            'id', NEW.id,
+            'created_by', NEW.created_by,
+         )::text
+      );
       RETURN NEW;
    END;
    $$ LANGUAGE plpgsql;
