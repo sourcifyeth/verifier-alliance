@@ -69,10 +69,12 @@ jobs:
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
 
+      - name: Install gcloud alpha components
+        run: gcloud components install alpha --quiet
+
       - name: Deploy to Cloud Run
         run: |
           gcloud alpha run worker-pools deploy ${{ env.SERVICE_NAME }} \
             --image=${{ env.REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT }}/${{ env.GCP_REPOSITORY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}@${{ steps.push.outputs.digest }} \
             --region=${{ env.REGION }} \
-            --project=${{ env.GCP_PROJECT }} \
-            --quiet
+            --project=${{ env.GCP_PROJECT }} 
