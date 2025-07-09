@@ -23,6 +23,8 @@ const subscriber = createSubscriber({
   password: process.env.VERA_PASSWORD,
 });
 
+const schema = process.env.VERA_SCHEMA;
+
 async function main() {
   await veraClient.connect();
 
@@ -55,11 +57,11 @@ async function main() {
                 compiled_contracts.version as compiler_version,
                 compiled_contracts.fully_qualified_name,
                 concat('0x', encode(contract_deployments.transaction_hash, 'hex')) as creation_transaction_hash
-            FROM verified_contracts
-              JOIN compiled_contracts ON compiled_contracts.id = verified_contracts.compilation_id
-              JOIN contract_deployments ON contract_deployments.id = verified_contracts.deployment_id 
-              JOIN compiled_contracts_sources ON compiled_contracts_sources.compilation_id = compiled_contracts.id
-              LEFT JOIN sources ON sources.source_hash = compiled_contracts_sources.source_hash
+            FROM ${schema}.verified_contracts
+              JOIN ${schema}.compiled_contracts ON compiled_contracts.id = verified_contracts.compilation_id
+              JOIN ${schema}.contract_deployments ON contract_deployments.id = verified_contracts.deployment_id
+              JOIN ${schema}.compiled_contracts_sources ON compiled_contracts_sources.compilation_id = compiled_contracts.id
+              LEFT JOIN ${schema}.sources ON sources.source_hash = compiled_contracts_sources.source_hash
             WHERE
                 verified_contracts.id = $1
             GROUP BY 
