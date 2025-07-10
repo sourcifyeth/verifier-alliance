@@ -66,10 +66,10 @@ async function main() {
     );
 
     // Skip verified_contracts pushed by sourcify
-    // if (payload.created_by === "sourcify") {
-    //   logger.info("Contract inserted by Sourcify, skipping.");
-    //   return;
-    // }
+    if (payload.created_by === "sourcify") {
+      logger.info("Contract inserted by Sourcify, skipping.");
+      return;
+    }
 
     let body;
     let chainId;
