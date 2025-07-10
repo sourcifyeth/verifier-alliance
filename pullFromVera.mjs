@@ -208,11 +208,19 @@ async function main() {
   //   shutdown();
   // });
 
-  // await subscriber.connect();
-  // logger.info("Connected the subscriber to the database");
+  try {
+    await subscriber.connect();
+    logger.info("Connected the subscriber to the database");
 
-  // subscriber.listenTo("new_verified_contract");
-  // logger.info("Started listening for VerA verified_contracts...");
+    await subscriber.listenTo("new_verified_contract");
+    logger.info("Started listening for VerA verified_contracts...");
+  } catch (error) {
+    logger.error("Error starting subscriber", {
+      message: error.message,
+      errorObject: error,
+    });
+    process.exit(1);
+  }
 }
 
 main();
