@@ -9,35 +9,45 @@ dotenv.config();
 const { Client } = pg;
 
 async function main() {
-  let clientConfig;
+  let veraClient;
+  let subscriber;
 
-  if (process.env.ALLIANCE_GOOGLE_CLOUD_SQL_INSTANCE_NAME) {
-    const connector = new Connector();
-    const clientOpts = await connector.getOptions({
-      instanceConnectionName:
-        process.env.ALLIANCE_GOOGLE_CLOUD_SQL_INSTANCE_NAME,
-      authType: AuthTypes.PASSWORD,
+  try {
+    let clientConfig;
+    if (process.env.ALLIANCE_GOOGLE_CLOUD_SQL_INSTANCE_NAME) {
+      const connector = new Connector();
+      const clientOpts = await connector.getOptions({
+        instanceConnectionName:
+          process.env.ALLIANCE_GOOGLE_CLOUD_SQL_INSTANCE_NAME,
+        authType: AuthTypes.PASSWORD,
+      });
+      clientConfig = {
+        ...clientOpts,
+        user: process.env.ALLIANCE_GOOGLE_CLOUD_SQL_USER,
+        database: process.env.ALLIANCE_GOOGLE_CLOUD_SQL_DATABASE,
+        max: 5,
+        password: process.env.ALLIANCE_GOOGLE_CLOUD_SQL_PASSWORD,
+      };
+    } else {
+      clientConfig = {
+        host: process.env.VERA_HOST,
+        database: process.env.VERA_DB,
+        user: process.env.VERA_USER,
+        password: process.env.VERA_PASSWORD,
+        port: process.env.VERA_PORT,
+      };
+    }
+
+    veraClient = new Client(clientConfig);
+    subscriber = createSubscriber(clientConfig);
+    await veraClient.connect();
+  } catch (error) {
+    logger.error("Error creating database client configuration", {
+      message: error.message,
+      errorObject: error,
     });
-    clientConfig = {
-      ...clientOpts,
-      user: process.env.ALLIANCE_GOOGLE_CLOUD_SQL_USER,
-      database: process.env.ALLIANCE_GOOGLE_CLOUD_SQL_DATABASE,
-      max: 5,
-      password: process.env.ALLIANCE_GOOGLE_CLOUD_SQL_PASSWORD,
-    };
-  } else {
-    clientConfig = {
-      host: process.env.VERA_HOST,
-      database: process.env.VERA_DB,
-      user: process.env.VERA_USER,
-      password: process.env.VERA_PASSWORD,
-      port: process.env.VERA_PORT,
-    };
+    process.exit(1);
   }
-
-  const veraClient = new Client(clientConfig);
-  const subscriber = createSubscriber(clientConfig);
-  await veraClient.connect();
 
   const schema = process.env.VERA_SCHEMA;
 
