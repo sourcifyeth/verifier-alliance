@@ -9,12 +9,14 @@ dotenv.config();
 const { Client } = pg;
 
 async function main() {
+  logger.info("Starting VerA pulling sync service...");
   let veraClient;
   let subscriber;
 
   try {
     let clientConfig;
     if (process.env.ALLIANCE_GOOGLE_CLOUD_SQL_INSTANCE_NAME) {
+      logger.info("Using Google Cloud SQL Connector");
       const connector = new Connector();
       const clientOpts = await connector.getOptions({
         instanceConnectionName:
@@ -29,6 +31,7 @@ async function main() {
         password: process.env.ALLIANCE_GOOGLE_CLOUD_SQL_PASSWORD,
       };
     } else {
+      logger.info("Using PostgreSQL direct connection");
       clientConfig = {
         host: process.env.VERA_HOST,
         database: process.env.VERA_DB,
@@ -37,12 +40,18 @@ async function main() {
         port: process.env.VERA_PORT,
       };
     }
+    logger.info("Done creating database client configuration");
 
     veraClient = new Client(clientConfig);
+    logger.info("Created database client");
+
     subscriber = createSubscriber(clientConfig);
+    logger.info("Created database subscriber");
+
     await veraClient.connect();
+    logger.info("Connected to VerA database");
   } catch (error) {
-    logger.error("Error creating database client configuration", {
+    logger.error("Error creating database client", {
       message: error.message,
       errorObject: error,
     });
@@ -168,6 +177,7 @@ async function main() {
       return;
     }
   });
+  logger.info("Created subscription handler for 'new_verified_contract'");
 
   // Graceful shutdown handling
   async function shutdown() {
@@ -186,21 +196,23 @@ async function main() {
   // Handle process termination signals
   process.on("SIGINT", shutdown);
   process.on("SIGTERM", shutdown);
-  process.on("uncaughtException", (error) => {
-    logger.error("Uncaught Exception", {
-      message: error.message,
-      errorObject: error,
-    });
-    shutdown();
-  });
+  // process.on("uncaughtException", (error) => {
+  //   logger.error("Uncaught Exception", {
+  //     message: error.message,
+  //     errorObject: error,
+  //   });
+  //   shutdown();
+  // });
   // process.on("unhandledRejection", (reason, promise) => {
   //   logger.error("Unhandled Rejection at:", { promise, reason });
   //   shutdown();
   // });
 
   await subscriber.connect();
-  logger.info("Started listening for VerA verified_contracts...");
+  logger.info("Connected the subscriber to the database");
+
   subscriber.listenTo("new_verified_contract");
+  logger.info("Started listening for VerA verified_contracts...");
 }
 
 main();
