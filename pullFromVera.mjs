@@ -8,39 +8,38 @@ import { AuthTypes, Connector } from "@google-cloud/cloud-sql-connector";
 dotenv.config();
 const { Client } = pg;
 
-let clientConfig;
-
-if (process.env.ALLIANCE_GOOGLE_CLOUD_SQL_INSTANCE_NAME) {
-  const connector = new Connector();
-  const clientOpts = await connector.getOptions({
-    instanceConnectionName: process.env.ALLIANCE_GOOGLE_CLOUD_SQL_INSTANCE_NAME,
-    authType: AuthTypes.PASSWORD,
-  });
-  clientConfig = {
-    ...clientOpts,
-    user: process.env.ALLIANCE_GOOGLE_CLOUD_SQL_USER,
-    database: process.env.ALLIANCE_GOOGLE_CLOUD_SQL_DATABASE,
-    max: 5,
-    password: process.env.ALLIANCE_GOOGLE_CLOUD_SQL_PASSWORD,
-  };
-} else {
-  clientConfig = {
-    host: process.env.VERA_HOST,
-    database: process.env.VERA_DB,
-    user: process.env.VERA_USER,
-    password: process.env.VERA_PASSWORD,
-    port: process.env.VERA_PORT,
-  };
-}
-
-const veraClient = new Client(clientConfig);
-
-const subscriber = createSubscriber(clientConfig);
-
-const schema = process.env.VERA_SCHEMA;
-
 async function main() {
+  let clientConfig;
+
+  if (process.env.ALLIANCE_GOOGLE_CLOUD_SQL_INSTANCE_NAME) {
+    const connector = new Connector();
+    const clientOpts = await connector.getOptions({
+      instanceConnectionName:
+        process.env.ALLIANCE_GOOGLE_CLOUD_SQL_INSTANCE_NAME,
+      authType: AuthTypes.PASSWORD,
+    });
+    clientConfig = {
+      ...clientOpts,
+      user: process.env.ALLIANCE_GOOGLE_CLOUD_SQL_USER,
+      database: process.env.ALLIANCE_GOOGLE_CLOUD_SQL_DATABASE,
+      max: 5,
+      password: process.env.ALLIANCE_GOOGLE_CLOUD_SQL_PASSWORD,
+    };
+  } else {
+    clientConfig = {
+      host: process.env.VERA_HOST,
+      database: process.env.VERA_DB,
+      user: process.env.VERA_USER,
+      password: process.env.VERA_PASSWORD,
+      port: process.env.VERA_PORT,
+    };
+  }
+
+  const veraClient = new Client(clientConfig);
+  const subscriber = createSubscriber(clientConfig);
   await veraClient.connect();
+
+  const schema = process.env.VERA_SCHEMA;
 
   subscriber.notifications.on("new_verified_contract", async (payload) => {
     logger.info("Received notification in 'new_verified_contract'", {
@@ -189,9 +188,9 @@ process.on("uncaughtException", (error) => {
   });
   shutdown();
 });
-// process.on("unhandledRejection", (reason, promise) => {
-//   logger.error("Unhandled Rejection at:", { promise, reason });
-//   shutdown();
-// });
+process.on("unhandledRejection", (reason, promise) => {
+  logger.error("Unhandled Rejection at:", { promise, reason });
+  shutdown();
+});
 
 main();
