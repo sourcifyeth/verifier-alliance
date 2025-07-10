@@ -208,11 +208,11 @@ async function main() {
   //   shutdown();
   // });
 
-  await subscriber.connect();
-  logger.info("Connected the subscriber to the database");
+  // await subscriber.connect();
+  // logger.info("Connected the subscriber to the database");
 
-  subscriber.listenTo("new_verified_contract");
-  logger.info("Started listening for VerA verified_contracts...");
+  // subscriber.listenTo("new_verified_contract");
+  // logger.info("Started listening for VerA verified_contracts...");
 }
 
 main();
