@@ -48,6 +48,7 @@ async function main() {
     logger.info("Created database subscriber");
 
     await veraClient.connect();
+    await veraClient.query("SELECT 1"); // Test connection
     logger.info("Connected to VerA database");
   } catch (error) {
     logger.error("Error creating database client", {
