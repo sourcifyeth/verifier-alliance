@@ -189,9 +189,9 @@ process.on("uncaughtException", (error) => {
   });
   shutdown();
 });
-process.on("unhandledRejection", (reason, promise) => {
-  logger.error("Unhandled Rejection at:", { promise, reason });
-  shutdown();
-});
+// process.on("unhandledRejection", (reason, promise) => {
+//   logger.error("Unhandled Rejection at:", { promise, reason });
+//   shutdown();
+// });
 
 main();
