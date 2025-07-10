@@ -27,7 +27,6 @@ async function main() {
         ...clientOpts,
         user: process.env.ALLIANCE_GOOGLE_CLOUD_SQL_USER,
         database: process.env.ALLIANCE_GOOGLE_CLOUD_SQL_DATABASE,
-        max: 5,
         password: process.env.ALLIANCE_GOOGLE_CLOUD_SQL_PASSWORD,
       };
     } else {
