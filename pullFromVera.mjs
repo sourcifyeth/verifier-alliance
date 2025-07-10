@@ -3,25 +3,39 @@ import createSubscriber from "pg-listen";
 import dotenv from "dotenv";
 import fetch from "node-fetch";
 import logger from "./logger.mjs";
+import { AuthTypes, Connector } from "@google-cloud/cloud-sql-connector";
 
 dotenv.config();
 const { Client } = pg;
 
-const veraClient = new Client({
-  host: process.env.VERA_HOST,
-  database: process.env.VERA_DB,
-  user: process.env.VERA_USER,
-  password: process.env.VERA_PASSWORD,
-  port: process.env.VERA_PORT,
-});
+let clientConfig;
 
-const subscriber = createSubscriber({
-  host: process.env.VERA_HOST,
-  port: parseInt(process.env.VERA_PORT) || 5432,
-  database: process.env.VERA_DB,
-  user: process.env.VERA_USER,
-  password: process.env.VERA_PASSWORD,
-});
+if (process.env.ALLIANCE_GOOGLE_CLOUD_SQL_INSTANCE_NAME) {
+  const connector = new Connector();
+  const clientOpts = await connector.getOptions({
+    instanceConnectionName: process.env.ALLIANCE_GOOGLE_CLOUD_SQL_INSTANCE_NAME,
+    authType: AuthTypes.PASSWORD,
+  });
+  clientConfig = {
+    ...clientOpts,
+    user: process.env.ALLIANCE_GOOGLE_CLOUD_SQL_USER,
+    database: process.env.ALLIANCE_GOOGLE_CLOUD_SQL_DATABASE,
+    max: 5,
+    password: process.env.ALLIANCE_GOOGLE_CLOUD_SQL_PASSWORD,
+  };
+} else {
+  clientConfig = {
+    host: process.env.VERA_HOST,
+    database: process.env.VERA_DB,
+    user: process.env.VERA_USER,
+    password: process.env.VERA_PASSWORD,
+    port: process.env.VERA_PORT,
+  };
+}
+
+const veraClient = new Client(clientConfig);
+
+const subscriber = createSubscriber(clientConfig);
 
 const schema = process.env.VERA_SCHEMA;
 
