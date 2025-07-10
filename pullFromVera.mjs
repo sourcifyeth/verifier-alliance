@@ -1,5 +1,4 @@
 import pg from "pg";
-// import createSubscriber from "pg-listen";
 import dotenv from "dotenv";
 import fetch from "node-fetch";
 import logger from "./logger.mjs";
@@ -11,7 +10,6 @@ const { Client } = pg;
 async function main() {
   logger.info("Starting VerA pulling sync service...");
   let veraClient;
-  // let subscriber;
 
   try {
     let clientConfig;
@@ -44,17 +42,16 @@ async function main() {
     veraClient = new Client(clientConfig);
     logger.info("Created database client");
 
-    // subscriber = createSubscriber(clientConfig);
-    // logger.info("Created database subscriber");
-
     await veraClient.connect();
     await veraClient.query("SELECT 1"); // Test connection
     logger.info("Connected to VerA database");
   } catch (error) {
-    logger.error("Error creating database client", {
-      message: error.message,
-      errorObject: error,
-    });
+    logger.error(
+      `Error creating database client: ${JSON.stringify({
+        message: error.message,
+        errorObject: error,
+      })}`
+    );
     process.exit(1);
   }
 
@@ -63,12 +60,10 @@ async function main() {
   veraClient.query(`LISTEN new_verified_contract;`);
 
   veraClient.on("notification", async (msg) => {
-    logger.info(
-      `Received notification in 'new_verified_contract: ${
-        JSON.stringify(msg.payload).id
-      }`
-    );
     const payload = JSON.parse(msg.payload);
+    logger.info(
+      `Received notification in 'new_verified_contract: ${payload.id}'`
+    );
 
     // Skip verified_contracts pushed by sourcify
     // if (payload.created_by === "sourcify") {
@@ -110,9 +105,9 @@ async function main() {
       );
 
       if (rows.length === 0) {
-        logger.error("No contract found for the given verified_contract ID", {
-          veraVerifiedContractId: payload.id,
-        });
+        logger.error(
+          `No contract found for the given verified_contract ID: ${payload.id}`
+        );
         return;
       }
 
@@ -133,11 +128,13 @@ async function main() {
         creationTransactionHash,
       };
     } catch (error) {
-      logger.error("Error processing new_verified_contract notification", {
-        message: error.message,
-        errorObject: error,
-        veraVerifiedContractId: payload.id,
-      });
+      logger.error(
+        `Error processing new_verified_contract notification: ${JSON.stringify({
+          message: error.message,
+          errorObject: error,
+          veraVerifiedContractId: payload.id,
+        })}`
+      );
       return;
     }
 
@@ -159,9 +156,9 @@ async function main() {
 
       if (res.status === 202) {
         const response = await res.json();
-        logger.info("Contract submitted for verification", {
-          verificationId: response.verificationId,
-        });
+        logger.info(
+          `Contract submitted for verification: ${response.verificationId}`
+        );
       } else {
         const errorResponse = await res.json();
         logger.warn(
@@ -192,7 +189,7 @@ async function main() {
       await veraClient.end();
       logger.info("Database connections closed successfully");
     } catch (error) {
-      logger.error("Error during shutdown", { error: error.message });
+      logger.error(`Error during shutdown error: ${JSON.stringify(error)}`);
       process.exit(1);
     }
     process.exit(0);
@@ -202,32 +199,10 @@ async function main() {
   process.on("SIGINT", shutdown);
   process.on("SIGTERM", shutdown);
 
-  // subscriber.events.on("error", (error) => {
-  //   logger.error("Fatal database client error:", {
-  //     error: JSON.stringify(error),
-  //   });
-  //   process.exit(1);
-  // });
   veraClient.on("error", (error) => {
-    logger.error("Fatal database client error:", {
-      error: JSON.stringify(error),
-    });
+    logger.error(`Fatal database client error: ${JSON.stringify(error)}`);
     process.exit(1);
   });
-
-  // try {
-  //   await subscriber.connect();
-  //   logger.info("Connected the subscriber to the database");
-
-  //   await subscriber.listenTo("new_verified_contract");
-  //   logger.info("Started listening for VerA verified_contracts...");
-  // } catch (error) {
-  //   logger.error("Error starting subscriber", {
-  //     message: error.message,
-  //     errorObject: JSON.stringify(error),
-  //   });
-  //   process.exit(1);
-  // }
 }
 
 main();
