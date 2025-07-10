@@ -195,17 +195,19 @@ async function main() {
   // Handle process termination signals
   process.on("SIGINT", shutdown);
   process.on("SIGTERM", shutdown);
-  // process.on("uncaughtException", (error) => {
-  //   logger.error("Uncaught Exception", {
-  //     message: error.message,
-  //     errorObject: error,
-  //   });
-  //   shutdown();
-  // });
-  // process.on("unhandledRejection", (reason, promise) => {
-  //   logger.error("Unhandled Rejection at:", { promise, reason });
-  //   shutdown();
-  // });
+
+  subscriber.events.on("error", (error) => {
+    logger.error("Fatal database client error:", {
+      error: JSON.stringify(error),
+    });
+    process.exit(1);
+  });
+  client.on("error", (error) => {
+    logger.error("Fatal database client error:", {
+      error: JSON.stringify(error),
+    });
+    process.exit(1);
+  });
 
   try {
     await subscriber.connect();
@@ -216,7 +218,7 @@ async function main() {
   } catch (error) {
     logger.error("Error starting subscriber", {
       message: error.message,
-      errorObject: error,
+      errorObject: JSON.stringify(error),
     });
     process.exit(1);
   }
