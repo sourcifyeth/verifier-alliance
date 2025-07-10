@@ -67,7 +67,7 @@ async function main() {
 
     // Skip verified_contracts pushed by sourcify
     if (payload.created_by === "sourcify") {
-      logger.info("Contract inserted by Sourcify, skipping.");
+      logger.info(`Contract inserted by Sourcify, skipping: ${payload.id}`);
       return;
     }
 
@@ -157,15 +157,17 @@ async function main() {
       if (res.status === 202) {
         const response = await res.json();
         logger.info(
-          `Contract submitted for verification: ${response.verificationId}`
+          `Contract (id ${payload.id}, chain ${chainId}, address ${address}) submitted for verification: ${response.verificationId}`
         );
       } else {
         const errorResponse = await res.json();
         logger.warn(
-          "Server returned an error when trying to submit for verification",
+          `Server returned an error when trying to submit contract (id ${payload.id}, chain ${chainId}, address ${address}) for verification`,
           {
             errorResponse,
             veraVerifiedContractId: payload.id,
+            chainId,
+            address,
           }
         );
         return;
@@ -175,6 +177,8 @@ async function main() {
         message: error.message,
         errorObject: error,
         veraVerifiedContractId: payload.id,
+        chainId,
+        address,
       });
       return;
     }
