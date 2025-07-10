@@ -159,38 +159,38 @@ async function main() {
     }
   });
 
-  subscriber.connect();
+  // Graceful shutdown handling
+  async function shutdown() {
+    logger.info("Shutting down gracefully...");
+    try {
+      await subscriber.close();
+      await veraClient.end();
+      logger.info("Database connections closed successfully");
+    } catch (error) {
+      logger.error("Error during shutdown", { error: error.message });
+      process.exit(1);
+    }
+    process.exit(0);
+  }
+
+  // Handle process termination signals
+  process.on("SIGINT", shutdown);
+  process.on("SIGTERM", shutdown);
+  process.on("uncaughtException", (error) => {
+    logger.error("Uncaught Exception", {
+      message: error.message,
+      errorObject: error,
+    });
+    shutdown();
+  });
+  process.on("unhandledRejection", (reason, promise) => {
+    logger.error("Unhandled Rejection at:", { promise, reason });
+    shutdown();
+  });
+
+  await subscriber.connect();
   logger.info("Started listening for VerA verified_contracts...");
   subscriber.listenTo("new_verified_contract");
 }
-
-// Graceful shutdown handling
-async function shutdown() {
-  logger.info("Shutting down gracefully...");
-  try {
-    await subscriber.close();
-    await veraClient.end();
-    logger.info("Database connections closed successfully");
-  } catch (error) {
-    logger.error("Error during shutdown", { error: error.message });
-    process.exit(1);
-  }
-  process.exit(0);
-}
-
-// Handle process termination signals
-process.on("SIGINT", shutdown);
-process.on("SIGTERM", shutdown);
-process.on("uncaughtException", (error) => {
-  logger.error("Uncaught Exception", {
-    message: error.message,
-    errorObject: error,
-  });
-  shutdown();
-});
-process.on("unhandledRejection", (reason, promise) => {
-  logger.error("Unhandled Rejection at:", { promise, reason });
-  shutdown();
-});
 
 main();
