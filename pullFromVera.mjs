@@ -202,7 +202,7 @@ async function main() {
     });
     process.exit(1);
   });
-  client.on("error", (error) => {
+  veraClient.on("error", (error) => {
     logger.error("Fatal database client error:", {
       error: JSON.stringify(error),
     });
