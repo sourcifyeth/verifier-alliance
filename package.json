@@ -6,7 +6,8 @@
   "main": "index.js",
   "scripts": {
     "vera:push": "node ./pushToVera.mjs",
-    "vera:pull": "node ./pullFromVera.mjs"
+    "vera:pull": "node ./pullFromVera.mjs",
+    "sourcify:push": "node ./pushToSourcify.mjs"
   },
   "author": "",
   "license": "ISC",

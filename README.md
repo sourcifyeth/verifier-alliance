@@ -20,7 +20,32 @@ This script is needed to push all verified_contracts from one Sourcify to VerA d
    c. Get all the FK information
    d. Insert all the verified_contracts dependencies (compiled_contracts,contract_deployments,contracts,code) and verified_contracts using the new ids as FKs
 
-# Verifier Alliance -> Sourcify sync
+# Verifier Alliance -> Sourcify sync (historical data)
+
+This script fetches verified contracts from Verifier Alliance database and submits them to Sourcify's verification API.
+
+## Configure
+
+1. Copy and paste `.env.template` to `.env` and fill it appropriately.
+
+## Run
+
+`npm run sourcify:push`
+
+## How it works
+
+0. CURRENT_SOURCIFY_SYNC is a variable stored in a permanent file, default 1.
+1. Extract N verified_contracts starting from CURRENT_SOURCIFY_SYNC that haven't been processed yet
+2. For each verified_contract:
+   a. Build standard JSON input from compilation data
+   b. Submit to Sourcify API using /v2/verify/{chainId}/{address}
+   c. Track submission status in sourcify_sync table
+   d. Check pending verifications using /v2/verify/{verificationId}
+   e. Update the CURRENT_SOURCIFY_SYNC counter
+
+The script creates a sourcify_sync table to track verification attempts and prevent re-processing.
+
+# Verifier Alliance -> Sourcify sync (real time data)
 
 This daemon listens for `new_verified_contract` PostgreSQL notification and sends requests to sourcify-server.
 
