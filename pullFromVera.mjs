@@ -62,7 +62,7 @@ async function main() {
   veraClient.on("notification", async (msg) => {
     const payload = JSON.parse(msg.payload);
     logger.info(
-      `Received notification in 'new_verified_contract: ${payload.id}'`
+      `Received notification in 'new_verified_contract: ${payload.id} from ${payload.created_by}'`
     );
 
     // Skip verified_contracts pushed by sourcify
