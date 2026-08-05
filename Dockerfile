@@ -1,4 +1,4 @@
-FROM node:18.18.2-bullseye-slim
+FROM node:18.20.8-bullseye-slim@sha256:d69fb189fa7765636655db043a6a9e6be5ddf94bd1a8dc33fd0bcf4664606a9e
 
 RUN mkdir -p /home/app
 
